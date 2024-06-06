@@ -3,7 +3,7 @@
 .settings/
 .classpath
 .project
-
+.idea/
 
 # Ignore Gradle build output directory
 build

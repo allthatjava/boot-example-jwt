@@ -5,21 +5,28 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-
 public class JwtTokenUtil {
 	
-	@Value("@{jwt.secret}")
+	@Value("${jwt.secret}")
 	private String secret;
 	
 	// Util method to get data out of Token
 	private <T> T getClaimsFromToken(String token, Function<Claims, T> claimResolver) {
-		final Claims claims = Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody();
+		final Claims claims;
+		try {
+			claims = Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody();
+		} catch (ExpiredJwtException e) {
+			System.out.println("Token has been expired");
+			throw new RuntimeException(e);
+		} catch (SignatureException e) {
+			System.out.println("Token is not valid");
+			throw new RuntimeException(e);
+		}
+
 		return claimResolver.apply(claims);
 	}
 	
@@ -40,14 +47,15 @@ public class JwtTokenUtil {
 	
 	
 	// Generate Token
-	public String generateToken(UserDetails userDetails) {
+	public String generateToken(UserDetails userDetails, String type) {
 		Map<String, Object> claims = new HashMap<>();
+		int expiryTime = "ACCESS".equals(type)?5:24;
 		
 		return Jwts.builder()
 				.setClaims(claims)
 				.setSubject( userDetails.getUsername() )
 				.setIssuedAt(new Date(System.currentTimeMillis()))
-				.setExpiration( new Date(System.currentTimeMillis() + (5 * 60 * 60 ) * 1000) ) 	// 5 hours
+				.setExpiration( new Date(System.currentTimeMillis() + (expiryTime * 60 * 60 ) * 1000) ) 	// 5 hours
 				.signWith(SignatureAlgorithm.HS512, secret)
 				.compact();
 	}

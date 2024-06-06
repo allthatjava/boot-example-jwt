@@ -1,5 +1,6 @@
 package brian.example.boot.jwt.controller;
 
+import brian.example.boot.jwt.model.RefreshRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -7,10 +8,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import brian.example.boot.jwt.config.JwtTokenUtil;
 import brian.example.boot.jwt.model.AuthRequest;
@@ -27,7 +25,7 @@ public class JwtAuthenticationController {
 	private JwtTokenUtil jwtTokenUtil;
 	@Autowired
 	private JwtUserDetailsService userDetailService;
-	
+
 	@PostMapping("/authenticate")
 	public ResponseEntity<AuthResponse> createAuthenticationToken(@RequestBody AuthRequest authRequest) throws Exception{
 	
@@ -44,9 +42,23 @@ public class JwtAuthenticationController {
 		final UserDetails userDetails = userDetailService.loadUserByUsername(authRequest.getUsername());
 		
 		// Generate token with user name
-		final String token = jwtTokenUtil.generateToken(userDetails);
+		final String token = jwtTokenUtil.generateToken(userDetails, "ACCESS");
+		final String refreshToken = jwtTokenUtil.generateToken(userDetails, "REFRESH");
 		
 		// Return 
-		return ResponseEntity.ok(new AuthResponse(token));
+		return ResponseEntity.ok(new AuthResponse(token,refreshToken));
+	}
+
+	@PostMapping("/refresh")
+	public ResponseEntity<?> refreshAuthToken(@RequestBody RefreshRequest refreshRequest) {
+		UserDetails userDetails = userDetailService.loadUserByUsername(jwtTokenUtil.getUsernameFromToken(refreshRequest.getRefreshToken()));
+
+		if (jwtTokenUtil.validateToken(refreshRequest.getRefreshToken(), userDetails)) {
+			String newAccessToken = jwtTokenUtil.generateToken(userDetails, "ACCESS");
+			String newRefreshToken = jwtTokenUtil.generateToken(userDetails, "REFRESH");
+			return ResponseEntity.ok(new AuthResponse(newAccessToken, newRefreshToken));
+		} else {
+			return ResponseEntity.status(403).body("Invalid refresh token");
+		}
 	}
 }
